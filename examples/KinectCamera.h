@@ -1,33 +1,31 @@
-#ifndef KINECTCAMERA_H
-#define KINECTCAMERA_H
+#ifndef KINECT_CAMERA_H
+#define KINECT_CAMERA_H
 
+#include <iostream>
 #include <opencv2/opencv.hpp>
 #include <libfreenect2/libfreenect2.hpp>
-#include <libfreenect2/frame_listener.hpp>
+#include <libfreenect2/frame_listener_impl.h>
 #include <libfreenect2/registration.h>
-#include <libfreenect2/packet_pipeline.h>
-#include "libfreenect2/frame_listener_impl.h"
+#include <vector>
 
 class KinectCamera {
+    libfreenect2::Freenect2 freenect2;
+    libfreenect2::Freenect2Device *dev = nullptr;
+    libfreenect2::SyncMultiFrameListener listener;
+    libfreenect2::FrameMap frames;
+    libfreenect2::Registration *registration = nullptr;
+    bool application_shutdown = false;
+
 public:
     KinectCamera();
+
     ~KinectCamera();
 
-    bool initialize();
+    bool initialize(const std::string &serial = "");
+
+    std::vector<cv::Mat> getFrames();
+
     void shutdown();
-    bool captureFrame(cv::Mat& frame);
-
-private:
-    libfreenect2::Freenect2 freenect2;
-    libfreenect2::Freenect2Device* device;
-    libfreenect2::PacketPipeline* pipeline;
-    libfreenect2::Registration* registration;
-    libfreenect2::Frame* rgbFrame;
-    libfreenect2::Frame* depthFrame;
-    libfreenect2::FrameMap frameMap;
-    libfreenect2::SyncMultiFrameListener* listener;
-
-    bool configureDevice();
 };
 
-#endif // KINECTCAMERA_H
+#endif // KINECT_CAMERA_H

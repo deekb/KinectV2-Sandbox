@@ -1,161 +1,130 @@
 #include <iostream>
-#include <cstdlib>
-#include <csignal>
+#include <vector>
 #include <opencv2/opencv.hpp>
-#include <libfreenect2/libfreenect2.hpp>
-#include <libfreenect2/frame_listener_impl.h>
-#include <libfreenect2/registration.h>
-#include <libfreenect2/packet_pipeline.h>
+#include <opencv2/viz.hpp>
+#include "KinectCamera.h"
 #include <fstream>
-
-// Constants for denoising parameters
-constexpr float DENOISE_H = 2.0; // Filter strength (lower preserves more details)
-constexpr float DENOISE_H_COLOR = 0.0; // Strength of color components
-constexpr int DENOISE_TEMPLATE_WINDOW_SIZE = 5; // Size of the pixel neighborhood
-constexpr int DENOISE_SEARCH_WINDOW_SIZE = 15; // Size of the window for finding similar patches
+#include <ctime>
 
 bool application_shutdown = false;
 
-void sigint_handler(int s) {
-    application_shutdown = true;
+// Function to export point cloud to a PLY file
+void exportPointCloudToPLY(const std::vector<cv::Point3f>& pointCloud) {
+    // Generate file name with current date-time
+    time_t rawtime;
+    struct tm* timeinfo;
+    char buffer[80];
+
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+
+    strftime(buffer, sizeof(buffer), "pointcloud-%Y-%m-%d-%H-%M-%S.ply", timeinfo);
+    std::string filename(buffer);
+
+    // Write PLY header and data
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "Error opening file for writing: " << filename << std::endl;
+        return;
+    }
+
+    // Write PLY header
+    outFile << "ply" << std::endl;
+    outFile << "format ascii 1.0" << std::endl;
+    outFile << "element vertex " << pointCloud.size() << std::endl;
+    outFile << "property float x" << std::endl;
+    outFile << "property float y" << std::endl;
+    outFile << "property float z" << std::endl;
+    outFile << "end_header" << std::endl;
+
+    // Write point cloud data
+    for (const auto& pt : pointCloud) {
+        outFile << pt.x << " " << pt.y << " " << pt.z << std::endl;
+    }
+
+    outFile.close();
+    std::cout << "Point cloud saved to " << filename << std::endl;
+}
+
+void visualizePointCloud(cv::viz::Viz3d& visualizer, const std::vector<cv::Point3f>& pointCloud) {
+    cv::viz::WCloud cloudWidget(pointCloud, cv::viz::Color::green());
+    visualizer.setRepresentation(cv::viz::REPRESENTATION_WIREFRAME);
+    // Create camera pose
+    cv::Vec3d cam_position(0, 0, -10); // Camera position in world coordinates
+    cv::Vec3d cam_focal_point(0, 0, 0); // Look at the origin
+    cv::Vec3d cam_y_dir(0.0, 1, 0); // Up direction (Y-axis)
+
+    cv::Affine3d cam_pose = cv::viz::makeCameraPose(cam_position, cam_focal_point, cam_y_dir);
+    visualizer.showWidget("Point Cloud", cloudWidget);
+    visualizer.setViewerPose(cam_pose);
+    visualizer.spinOnce(1, true);
+}
+
+void createPointCloud(const cv::Mat& depthMatNormalized, std::vector<cv::Point3f>& pointCloud) {
+    // Clear existing point cloud data
+    pointCloud.clear();
+
+    // Assuming depthMat is already normalized and scaled to real-world values
+    for (int y = 0; y < depthMatNormalized.rows; ++y) {
+        for (int x = 0; x < depthMatNormalized.cols; ++x) {
+            float depthValue = -depthMatNormalized.at<float>(y, x);
+
+            float X = (x - 509.901) * depthValue / 711.629;
+            float Y = depthValue;
+            float Z = (y - 403.607) * depthValue / 710.944;
+
+            cv::Point3f point(X, Y, Z);
+            pointCloud.push_back(point);
+        }
+    }
 }
 
 int main(int argc, char *argv[]) {
-    std::string program_path(argv[0]);
-    std::cout << "Version: " << LIBFREENECT2_VERSION << std::endl;
-    std::cout << "Usage: " << program_path << " [<device serial>]" << std::endl;
-
-    libfreenect2::Freenect2 freenect2;
-    libfreenect2::Freenect2Device *dev = nullptr;
-    libfreenect2::PacketPipeline *pipeline = nullptr;
-
     std::string serial;
+    cv::Mat RGBMatNormalized, IRMatNormalized, IRMatNormalizedSquareroot, depthMatNormalized;
 
-
-    for (int argI = 1; argI < argc; ++argI) {
-        const std::string arg(argv[argI]);
-
-        if (arg.find_first_not_of("0123456789") == std::string::npos) {
-            serial = arg;
-        } else {
-            std::cout << "Unknown argument: " << arg << std::endl;
-        }
+    if (argc > 1) {
+        serial = argv[1];
     }
 
-    if (freenect2.enumerateDevices() == 0) {
-        std::cout << "No device connected!" << std::endl;
+    KinectCamera kinect;
+    if (!kinect.initialize(serial)) {
+        std::cerr << "Failed to initialize Kinect camera!" << std::endl;
         return -1;
     }
 
-    if (serial.empty()) {
-        serial = freenect2.getDefaultDeviceSerialNumber();
-    }
+    // Create Viz3d object for point cloud visualization
+    cv::viz::Viz3d visualizer("Point Cloud");
 
-    if (pipeline) {
-        dev = freenect2.openDevice(serial, pipeline);
-    } else {
-        dev = freenect2.openDevice(serial);
-    }
-
-    if (dev == nullptr) {
-        std::cout << "Failure opening device!" << std::endl;
-        return -1;
-    }
-
-    application_shutdown = false;
-
-    int types = libfreenect2::Frame::Color | libfreenect2::Frame::Ir | libfreenect2::Frame::Depth;
-    libfreenect2::SyncMultiFrameListener listener(types);
-    libfreenect2::FrameMap frames;
-
-    dev->setColorFrameListener(&listener);
-    dev->setIrAndDepthFrameListener(&listener);
-
-    if (!dev->start())
-        return -1;
-
-    std::cout << "device SN: " << dev->getSerialNumber() << std::endl;
-    std::cout << "device FW: " << dev->getFirmwareVersion() << std::endl;
-
-    auto *registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
-    libfreenect2::Frame undistorted(512, 424, 4), registered(512, 424, 4);
-
-    size_t framecount = 0;
+    std::vector<cv::Point3f> pointCloud;
 
     while (!application_shutdown) {
-        if (!listener.waitForNewFrame(frames, 1000)) {
-            std::cout << "Timeout!" << std::endl;
-            return -1;
-        }
+        std::vector<cv::Mat> matVector = kinect.getFrames();
+        RGBMatNormalized = matVector[0];
+        IRMatNormalized = matVector[1];
+        IRMatNormalizedSquareroot = matVector[2];
+        depthMatNormalized = matVector[3];
 
-        // Convert frames to OpenCV Mat
-        auto rgbFrame = frames[libfreenect2::Frame::Color];
-        cv::Mat rgbMat(rgbFrame->height, rgbFrame->width, CV_8UC4, rgbFrame->data);
-        auto irMat = cv::Mat(frames[libfreenect2::Frame::Ir]->height, frames[libfreenect2::Frame::Ir]->width, CV_32FC1,
-                             frames[libfreenect2::Frame::Ir]->data);
-        auto depthMat = cv::Mat(frames[libfreenect2::Frame::Depth]->height, frames[libfreenect2::Frame::Depth]->width,
-                                CV_32FC1, frames[libfreenect2::Frame::Depth]->data);
+        // Display images
+        cv::imshow("Resized RGB", RGBMatNormalized);
+        cv::imshow("IR", IRMatNormalized);
+        cv::imshow("IR-SQRT", IRMatNormalizedSquareroot);
+        cv::imshow("Depth", depthMatNormalized);
 
-        // Calculate min, max, and average for depth and IR frames
-        double minVal, maxVal;
-        cv::Scalar meanVal;
+        // Create or update point cloud visualization
+        createPointCloud(depthMatNormalized, pointCloud);
+        visualizePointCloud(visualizer, pointCloud);
 
-        cv::minMaxLoc(depthMat, &minVal, &maxVal);
-        meanVal = cv::mean(depthMat);
-        std::cout << "Depth - Min: " << minVal << " Max: " << maxVal << " Avg: " << meanVal[0] << std::endl;
+        // Wait for key press
+        int keyCode = cv::waitKey(1);
 
-        cv::minMaxLoc(irMat, &minVal, &maxVal);
-        meanVal = cv::mean(irMat);
-        std::cout << "IR - Min: " << minVal << " Max: " << maxVal << " Avg: " << meanVal[0] << std::endl;
-
-        // Normalize IR and Depth frames
-        cv::Mat irMatNormalized, depthMatNormalized;
-        irMat.convertTo(irMatNormalized, CV_8UC1, 255.0 / 65535.0);
-        depthMat.convertTo(depthMatNormalized, CV_8UC1, 255.0 / 4499.92);
-
-        // Resize the image
-        cv::Size newSize(640, 480); // Specify the new size here (e.g., 640x480)
-        cv::Mat resizedMat;
-        resize(rgbMat, resizedMat, newSize);
-
-
-        // Apply Gaussian blur for noise reduction
-        cv::Mat filteredMat;
-        GaussianBlur(resizedMat, filteredMat, cv::Size(5, 5), 0);
-
-        // Apply Non-local Means Denoising with adjusted parameters
-        cv::Mat denoisedMat;
-        fastNlMeansDenoisingColored(resizedMat, denoisedMat,
-                                        DENOISE_H, DENOISE_H_COLOR,
-                                        DENOISE_TEMPLATE_WINDOW_SIZE,
-                                        DENOISE_SEARCH_WINDOW_SIZE);
-
-        // Display the denoised image
-        imshow("Denoised RGB", denoisedMat);
-
-        // Display the filtered image
-        imshow("Filtered RGB", filteredMat);
-
-        // Display the resized image
-        imshow("Resized RGB", resizedMat);
-
-        // Display frames
-        imshow("RGB", rgbMat);
-        imshow("IR", irMatNormalized);
-        imshow("Depth", depthMatNormalized);
-
-        int key = cv::waitKey(1);
-        if (key == 27) // ESC key to exit
+        if (keyCode == 'p' || keyCode == 'P') {
+            // Export point cloud to PLY file
+            exportPointCloudToPLY(pointCloud);
+        } else if (keyCode == 27) { // ESC key to exit
             application_shutdown = true;
-
-        listener.release(frames);
-        framecount++;
+        }
     }
-
-    dev->stop();
-    dev->close();
-
-    delete registration;
 
     return 0;
 }
