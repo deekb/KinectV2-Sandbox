@@ -1,0 +1,93 @@
+/home/derek/.local/share/JetBrains/Toolbox/apps/clion/bin/cmake/linux/x64/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/home/derek/.local/share/JetBrains/Toolbox/apps/clion/bin/ninja/linux/x64/ninja -G Ninja -S /home/derek/Programming/KinectV2-Sandbox -B /home/derek/Programming/KinectV2-Sandbox/cmake-build-debug
+CMake Deprecation Warning at CMakeLists.txt:1 (CMAKE_MINIMUM_REQUIRED):
+  Compatibility with CMake < 3.5 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+CMake Warning (dev) at CMakeLists.txt:25 (PROJECT):
+  Policy CMP0048 is not set: project() command manages VERSION variables.
+  Run "cmake --help-policy CMP0048" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+
+  The following variable(s) would be set to empty:
+
+    CMAKE_PROJECT_VERSION
+    CMAKE_PROJECT_VERSION_MAJOR
+    CMAKE_PROJECT_VERSION_MINOR
+    CMAKE_PROJECT_VERSION_PATCH
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- using tinythread as threading library
+-- Checking for modules 'libva;libva-drm'
+--   No package 'libva' found
+--   No package 'libva-drm' found
+-- Could NOT find TegraJPEG (missing: TegraJPEG_LIBRARIES TegraJPEG_INCLUDE_DIRS TegraJPEG_WORKS) 
+CMake Warning (dev) at /home/derek/.local/share/JetBrains/Toolbox/apps/clion/bin/cmake/linux/x64/share/cmake-3.28/Modules/FindOpenGL.cmake:381 (message):
+  Policy CMP0072 is not set: FindOpenGL prefers GLVND by default when
+  available.  Run "cmake --help-policy CMP0072" for policy details.  Use the
+  cmake_policy command to set the policy and suppress this warning.
+
+  FindOpenGL found both a legacy GL library:
+
+    OPENGL_gl_LIBRARY: /usr/lib/x86_64-linux-gnu/libGL.so
+
+  and GLVND libraries for OpenGL and GLX:
+
+    OPENGL_opengl_LIBRARY: /usr/lib/x86_64-linux-gnu/libOpenGL.so
+    OPENGL_glx_LIBRARY: /usr/lib/x86_64-linux-gnu/libGLX.so
+
+  OpenGL_GL_PREFERENCE has not been set to "GLVND" or "LEGACY", so for
+  compatibility with CMake 3.10 and below the legacy GL library will be used.
+Call Stack (most recent call first):
+  CMakeLists.txt:271 (FIND_PACKAGE)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- Could NOT find OpenCL (missing: OpenCL_LIBRARY) (found version "2.0")
+CMake Warning (dev) at CMakeLists.txt:344 (FIND_PACKAGE):
+  Policy CMP0146 is not set: The FindCUDA module is removed.  Run "cmake
+  --help-policy CMP0146" for policy details.  Use the cmake_policy command to
+  set the policy and suppress this warning.
+
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- RPATH set to /home/derek/Programming/libfreenect2/depends/libusb/lib
+-- Linking with these libraries: 
+ /home/derek/Programming/libfreenect2/depends/libusb/lib/libusb-1.0.so
+ pthread
+ /usr/lib/x86_64-linux-gnu/libturbojpeg.so.0
+ /usr/lib/x86_64-linux-gnu/libglfw.so
+ /usr/lib/x86_64-linux-gnu/libGL.so
+ /usr/local/cuda/lib64/libcudart_static.a
+ Threads::Threads
+ dl
+ /usr/lib/x86_64-linux-gnu/librt.a
+-- Could NOT find Doxygen (missing: DOXYGEN_EXECUTABLE) 
+-- Configurating examples
+CMake Deprecation Warning at examples/CMakeLists.txt:1 (CMAKE_MINIMUM_REQUIRED):
+  Compatibility with CMake < 3.5 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+-- Using in-tree freenect2 target
+-- Feature list:
+--   CUDA    yes
+--   CXX11    disabled
+--   Examples    yes
+--   OpenCL    no
+--   OpenGL    yes
+--   OpenNI2    yes
+--   TegraJPEG    no
+--   Threading    tinythread
+--   TurboJPEG    yes
+--   VAAPI    no
+--   VideoToolbox    no (Apple only)
+--   streamer_recorder    disabled
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/derek/Programming/KinectV2-Sandbox/cmake-build-debug
